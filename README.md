@@ -63,6 +63,7 @@ cd inconsole2-system
 ### 3. Build the system
 ```bash
 make ingraw_inconsole2_defconfig
+make
 ```
 Now wait until Buildroot finishes compiling everything.
 
