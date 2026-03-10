@@ -1,3 +1,6 @@
 [submodule "tools/inconsole-runtime-x86"]
 	path = tools/inconsole-runtime-x86
 	url = https://github.com/InGraw-Co/inconsole-runtime-x86.git
+[submodule "package/inconsole-runtime"]
+	path = package/inconsole-runtime
+	url = https://github.com/InGraw-Co/inconsole-runtime.git
