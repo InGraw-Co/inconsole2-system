@@ -10,17 +10,17 @@
 ✅: Supported — ❌: NOT support — ⚠️: Not Tested
 
 ## Hardware Checklist
-| Feature | Status | Difficulty |
-| :--- | :---: | :--- |
-| **LED** | ✅ | Easy |
-| **SD Card** | ✅ | Easy |
-| **LCD** | ✅ | Easy |
-| **USB Port** | ✅ | Easy |
-| **Buttons** | ✅ | Medium |
-| **Speaker** | ⏳ | Medium |
-| **Joystick** | ✅ | Hard |
-| **Battery** | ⏳ | Hard |
-| **WiFi** | ⏳ | Very Hard |
+| Feature | Status |
+| :--- | :---: |
+| **LED** | ✅ |
+| **SD Card** | ✅ |
+| **LCD** | ✅ |
+| **USB Port** | ✅ | 
+| **Buttons** | ✅ |
+| **Speaker** | ⏳ |
+| **Joystick** | ✅ |
+| **Battery** | ⏳ |
+| **WiFi** | ⏳ |
 
 ## Software Checklist
 | Feature | Status | Feature | Status |
