@@ -1,17 +1,40 @@
 
 <div align = center>
 
-# InConsole 2.0 Runtime
+# InConsole 2.0 System
 *Buildroot Package for InConsole 2.0 with support t113-s3*
 
 </div>
 
-# InConsole 2.0 Runtime - Hardware Status
+# InConsole 2.0 Status:
 ✅: Supported — ❌: NOT support — ⚠️: Not Tested
 
-| Vendor  | Device        | Chip    | U-Boot       | Defconfig                 | SD  | LCD | SPK | JOY | LED | SW  | USB | WIFI | BAT LEVEL |
-|---------|---------------|---------|--------------|---------------------------|-----|-----|-----|-----|-----|-----|-----|------|-----------|
-| InGraw  | InConsole 2.0 | T113-S3 | [tina,uboot 2018](https://github.com/jcyfkimi/tina-u-boot-2018) | inconsole2_defconfig      | ⚠️  | ⚠️  | ⚠️  | ⚠️  | ⚠️  | ⚠️  | ⚠️  | ⚠️   | ⚠️|
+## Hardware Checklist
+| Feature | Status | Difficulty |
+| :--- | :---: | :--- |
+| **LED** | ✅ | Easy |
+| **SD Card** | ✅ | Easy |
+| **LCD** | ✅ | Easy |
+| **USB Port** | ✅ | Easy |
+| **Buttons** | ✅ | Medium |
+| **Speaker** | ⏳ | Medium |
+| **Joystick** | ✅ | Hard |
+| **Battery** | ⏳ | Hard |
+| **WiFi** | ⏳ | Very Hard |
+
+## Software Checklist
+| Feature | Status | Feature | Status |
+| :--- | :---: | :--- | :---: |
+| **Boot Logo** | ✅ | **Recovery Mode** | ✅ |
+| **Autologin** | ✅ | **Game Cloud** | ⏳ |
+| **Launcher** | ✅ | **Virtual Keyboard** | ✅ |
+| **Setup Wizard** | ✅ | **Volume Control** | ✅ |
+| **Settings Menu** | ✅ | **USB Mass Storage** | ✅ |
+| **Online Updates** | ⏳ | **File Manager** | ✅ |
+
+| Vendor  | Device        | Chip    | U-Boot       | Defconfig                 |
+|---------|---------------|---------|--------------|---------------------------|
+| InGraw  | InConsole 2.0 | T113-S3 | [tina,uboot 2018](https://github.com/jcyfkimi/tina-u-boot-2018) | inconsole2_defconfig|
 
 
 ## Quick Start-up
