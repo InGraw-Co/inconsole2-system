@@ -1,3 +1,0 @@
-/home/mateusz/inconsole2-buildroot/tools/inconsole-runtime-x86/build/CMakeFiles/inconsole-runtime-x86.dir
-/home/mateusz/inconsole2-buildroot/tools/inconsole-runtime-x86/build/CMakeFiles/edit_cache.dir
-/home/mateusz/inconsole2-buildroot/tools/inconsole-runtime-x86/build/CMakeFiles/rebuild_cache.dir
