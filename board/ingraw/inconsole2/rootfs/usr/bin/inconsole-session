@@ -1,0 +1,129 @@
+#!/bin/sh
+
+RUNTIME_LOG="/inconsole-runtime-terminal.log"
+SCREEN_LOG="/inconsole-terminal-final.txt"
+
+# Animation settings for the logo spinner.
+ANIM_SECONDS="${INCONSOLE_LOGO_ANIM_SECONDS:-1}"
+FRAME_DELAY_US="${INCONSOLE_LOGO_FRAME_US:-50000}"
+SPINNER_FROM_BOTTOM="${INCONSOLE_LOGO_SPINNER_FROM_BOTTOM:-3}"
+
+get_tty_size() {
+	size="$(stty size 2>/dev/null)"
+	rows="${size% *}"
+	cols="${size#* }"
+
+	case "$rows" in
+		''|*[!0-9]*) rows=34 ;;
+	esac
+	case "$cols" in
+		''|*[!0-9]*) cols=60 ;;
+	esac
+
+	echo "$rows $cols"
+}
+
+draw_spinner_frame() {
+	row="$1"
+	col="$2"
+	active="$3"
+
+	d0='.'
+	d1='.'
+	d2='.'
+	d3='.'
+	d4='.'
+	d5='.'
+	d6='.'
+	d7='.'
+
+	case "$active" in
+		0) d0='o' ;;
+		1) d1='o' ;;
+		2) d2='o' ;;
+		3) d3='o' ;;
+		4) d4='o' ;;
+		5) d5='o' ;;
+		6) d6='o' ;;
+		*) d7='o' ;;
+	esac
+
+	# Dot layout:
+	# d7 d0 d1
+	# d6    d2
+	# d5 d4 d3
+	printf '\033[%s;%sH%s%s%s' "$row" "$col" "$d7" "$d0" "$d1"
+	printf '\033[%s;%sH%s %s' "$((row + 1))" "$col" "$d6" "$d2"
+	printf '\033[%s;%sH%s%s%s' "$((row + 2))" "$col" "$d5" "$d4" "$d3"
+}
+
+animate_logo_spinner() {
+	case "$ANIM_SECONDS" in
+		''|*[!0-9]*) ANIM_SECONDS=0 ;;
+	esac
+	if [ "$ANIM_SECONDS" -le 0 ]; then
+		return
+	fi
+
+	set -- $(get_tty_size)
+	rows="$1"
+	cols="$2"
+
+	spin_row="$((rows - SPINNER_FROM_BOTTOM - 2))"
+	if [ "$spin_row" -lt 1 ]; then
+		spin_row=1
+	fi
+	spin_col="$(((cols - 3) / 2 + 1))"
+
+	frames="$((ANIM_SECONDS * 1000000 / FRAME_DELAY_US))"
+	if [ "$frames" -lt 1 ]; then
+		frames=1
+	fi
+
+	frame=0
+
+	# Keep cursor hidden and animate a compact dot spinner.
+	printf '\033[?25l'
+	while [ "$frame" -lt "$frames" ]; do
+		draw_spinner_frame "$spin_row" "$spin_col" "$((frame % 8))"
+		usleep "$FRAME_DELAY_US"
+		frame=$((frame + 1))
+	done
+
+	printf '\033[%s;%sH   ' "$spin_row" "$spin_col"
+	printf '\033[%s;%sH   ' "$((spin_row + 1))" "$spin_col"
+	printf '\033[%s;%sH   ' "$((spin_row + 2))" "$spin_col"
+	printf '\033[?25h'
+}
+
+animate_logo_spinner
+
+if [ -x /usr/bin/inconsole-runtime ]; then
+	export INCONSOLE_DATA_ROOT="${INCONSOLE_DATA_ROOT:-/userdata}"
+	export INCONSOLE_SYSTEM_ICONS="${INCONSOLE_SYSTEM_ICONS:-/usr/share/inconsole/system-icons}"
+	export SDL_VIDEODRIVER="${SDL_VIDEODRIVER:-fbcon}"
+	export SDL_FBDEV="${SDL_FBDEV:-/dev/fb0}"
+	export SDL_NOMOUSE="${SDL_NOMOUSE:-1}"
+	export INCONSOLE_FORCE_SOFTWARE_RENDERER="${INCONSOLE_FORCE_SOFTWARE_RENDERER:-1}"
+	export INCONSOLE_CACHE_TEXT_MB="${INCONSOLE_CACHE_TEXT_MB:-1}"
+	export INCONSOLE_CACHE_ICON_MB="${INCONSOLE_CACHE_ICON_MB:-1}"
+	export INCONSOLE_CACHE_ICON_SCALED_MB="${INCONSOLE_CACHE_ICON_SCALED_MB:-1}"
+	export INCONSOLE_CACHE_STYLE_MB="${INCONSOLE_CACHE_STYLE_MB:-3}"
+	export INCONSOLE_CACHE_WIDTH_ITEMS="${INCONSOLE_CACHE_WIDTH_ITEMS:-768}"
+	export INCONSOLE_TARGET_FPS="${INCONSOLE_TARGET_FPS:-120}"
+	export INCONSOLE_SCENE_FADE_MS="${INCONSOLE_SCENE_FADE_MS:-120}"
+	export INCONSOLE_SCENE_FADE_ALPHA="${INCONSOLE_SCENE_FADE_ALPHA:-120}"
+	# Keep runtime UI visible on tty0; hide only warnings/errors.
+	/usr/bin/inconsole-runtime 2>>"$RUNTIME_LOG"
+	RUNTIME_RC=$?
+else
+	echo "inconsole-runtime not found in /usr/bin" >>"$RUNTIME_LOG"
+	RUNTIME_RC=127
+fi
+
+if [ -r /dev/vcs0 ]; then
+	cat /dev/vcs0 > "$SCREEN_LOG" 2>/dev/null
+fi
+
+printf '\033[0m\033[?25h'
+exec /bin/sh

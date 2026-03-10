@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/mateusz/inconsole2-buildroot/tools/inconsole-runtime-x86/build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

@@ -1,0 +1,7 @@
+# One path per line.
+# Relative paths are resolved from INCONSOLE_DATA_ROOT (userdata-x86).
+# Absolute paths are also supported.
+#
+# Example:
+# apps/demo-app/cache
+# system/tmp

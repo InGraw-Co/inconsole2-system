@@ -1,0 +1,360 @@
+// SPDX-License-Identifier: (GPL-2.0+ or MIT)
+// Copyright (C) 2022 Samuel Holland <samuel@sholland.org>
+
+/dts-v1/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/leds/common.h>
+#include "sun8i-t113.dtsi"
+
+/ {
+	model = "InConsole 2";
+	compatible = "ingraw,inconsole2", "allwinner,sun8i-t113";
+
+	aliases {
+		mmc0 = &mmc0;
+		serial0 = &uart0;
+		serial3 = &uart3;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+
+	reg_vcc: vcc {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+	};
+
+	reg_usbvbus: usbvbus {
+		compatible = "regulator-fixed";
+		regulator-name = "usbvbus";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		vin-supply = <&reg_vcc>;
+	};
+
+	reg_vcc_3v3: vcc-3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc-3v3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&reg_vcc>;
+	};
+
+	reg_vdd_cpu: vdd-cpu {
+		compatible = "regulator-fixed";
+		regulator-name = "vdd-cpu";
+		regulator-min-microvolt = <900000>;
+		regulator-max-microvolt = <900000>;
+		vin-supply = <&reg_vcc>;
+	};
+
+	reg_led_en: led-en {
+            compatible = "regulator-fixed";
+            regulator-name = "led_en_signal";
+            gpio = <&pio 6 11 GPIO_ACTIVE_HIGH>;
+            regulator-min-microvolt = <3300000>;
+            regulator-max-microvolt = <3300000>;
+ 
+            regulator-always-on;
+            regulator-boot-on;
+        };
+
+	leds {
+		compatible = "gpio-leds";
+
+		status {
+			label = "led_green";
+			linux,default-trigger = "heartbeat";
+			gpios = <&pio 4 13 GPIO_ACTIVE_HIGH>;
+		};
+	};
+
+	panel {
+		compatible = "ingraw,inconsole2-lcd", "simple-panel";
+		port {
+			panel_input: endpoint {
+				remote-endpoint = <&tcon_lcd0_out_panel>;
+			};
+		};
+	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+		autorepeat;
+
+		key_up {
+			label = "UP";
+			linux,code = <BTN_DPAD_UP>;
+			gpios = <&pio 4 7 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;   /* PE7 */
+			debounce-interval = <10>;
+		};
+
+		key_right {
+			label = "RIGHT";
+			linux,code = <BTN_DPAD_RIGHT>;
+			gpios = <&pio 4 10 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;  /* PE10 */
+			debounce-interval = <10>;
+		};
+
+		key_down {
+			label = "DOWN";
+			linux,code = <BTN_DPAD_DOWN>;
+			gpios = <&pio 4 9 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;   /* PE9 */
+			debounce-interval = <10>;
+		};
+
+		key_left {
+			label = "LEFT";
+			linux,code = <BTN_DPAD_LEFT>;
+			gpios = <&pio 4 8 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;   /* PE8 */
+			debounce-interval = <10>;
+		};
+
+		key_l {
+			label = "L";
+			linux,code = <BTN_TL>;
+			gpios = <&pio 4 6 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;   /* PE6 */
+			debounce-interval = <10>;
+		};
+
+		key_r {
+			label = "R";
+			linux,code = <BTN_TR>;
+			gpios = <&pio 6 5 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;   /* PG5 */
+			debounce-interval = <10>;
+		};
+
+		key_a {
+			label = "A";
+			linux,code = <BTN_SOUTH>;
+			gpios = <&pio 6 14 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;  /* PG14 */
+			debounce-interval = <10>;
+		};
+
+		key_b {
+			label = "B";
+			linux,code = <BTN_EAST>;
+			gpios = <&pio 6 13 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;  /* PG13 */
+			debounce-interval = <10>;
+		};
+
+		key_x {
+			label = "X";
+			linux,code = <BTN_NORTH>;
+			gpios = <&pio 6 12 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;  /* PG12 */
+			debounce-interval = <10>;
+		};
+
+		key_y {
+			label = "Y";
+			linux,code = <BTN_WEST>;
+			gpios = <&pio 6 4 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;   /* PG4 */
+			debounce-interval = <10>;
+		};
+
+		key_select {
+			label = "SELECT";
+			linux,code = <BTN_SELECT>;
+			gpios = <&pio 4 11 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;  /* PE11 */
+			debounce-interval = <10>;
+		};
+
+		key_start {
+			label = "START";
+			linux,code = <BTN_START>;
+			gpios = <&pio 6 15 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;  /* PG15 */
+			debounce-interval = <10>;
+		};
+
+		key_joy_switch {
+			label = "JOY_SWITCH";
+			linux,code = <BTN_THUMBL>;
+			gpios = <&pio 4 12 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;  /* PE12 */
+			debounce-interval = <10>;
+		};
+	};
+
+	joystick {
+		compatible = "adc-joystick";
+		io-channels = <&ads1115 4>, <&ads1115 5>;
+		poll-interval = <20>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		axis@0 {
+			reg = <0>;
+			linux,code = <ABS_Y>;
+			abs-range = <0 26624>;
+			abs-fuzz = <96>;
+			abs-flat = <1200>;
+		};
+
+		axis@1 {
+			reg = <1>;
+			linux,code = <ABS_X>;
+			abs-range = <26624 0>;
+			abs-fuzz = <96>;
+			abs-flat = <1200>;
+		};
+	};
+};
+
+
+// SYSTEM
+&reg_aldo {
+	regulator-min-microvolt = <1800000>;
+	regulator-max-microvolt = <1800000>;
+	vdd33-supply = <&reg_vcc_3v3>;
+};
+
+&cpu0 {
+	cpu-supply = <&reg_vdd_cpu>;
+};
+
+&cpu1 {
+	cpu-supply = <&reg_vdd_cpu>;
+};
+
+&ths {
+	status = "okay";
+};
+
+&wdt {
+	status = "okay";
+};
+
+&de {
+	status = "okay";
+};
+
+&pio {
+	vcc-pb-supply = <&reg_vcc_3v3>;
+	vcc-pc-supply = <&reg_vcc_3v3>;
+	vcc-pd-supply = <&reg_vcc_3v3>;
+	vcc-pe-supply = <&reg_vcc_3v3>;
+	vcc-pf-supply = <&reg_vcc_3v3>;
+	vcc-pg-supply = <&reg_vcc_3v3>;
+
+};
+
+&uart0 {
+	pinctrl-0 = <&uart0_pb8_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&uart3 {
+	pinctrl-0 = <&uart3_pb_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&i2c0 {
+	pinctrl-0 = <&i2c0_pe2_pins>;
+	pinctrl-names = "default";
+	clock-frequency = <400000>;
+	status = "okay";
+
+	ads1115: adc@48 {
+		compatible = "ti,ads1115";
+		reg = <0x48>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		#io-channel-cells = <1>;
+
+		channel@4 {
+			reg = <4>;
+			ti,gain = <1>;
+		};
+
+		channel@5 {
+			reg = <5>;
+			ti,gain = <1>;
+		};
+	};
+};
+
+&i2c1 {
+	pinctrl-0 = <&i2c1_pg8_pins>;
+	pinctrl-names = "default";
+	/* Keep fuel-gauge bus conservative after hardware rework. */
+	clock-frequency = <100000>;
+	status = "okay";
+
+	bq27220: fuel-gauge@55 {
+		compatible = "ti,bq27220";
+		reg = <0x55>;
+		interrupt-parent = <&pio>;
+		interrupts = <6 10 IRQ_TYPE_EDGE_FALLING>; /* PG10 = GPOUT */
+		ti,assume-battery-present;
+	};
+};
+
+&mmc0 {
+	bus-width = <4>;
+	cd-gpios = <&pio 5 6 (GPIO_ACTIVE_LOW)>;
+	disable-wp;
+	vmmc-supply = <&reg_vcc_3v3>;
+	vqmmc-supply = <&reg_vcc_3v3>;
+	pinctrl-0 = <&mmc0_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+
+// LCD
+&tcon_lcd0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&lcd_rgb666_pins>;
+	status = "okay";
+};
+
+&tcon_lcd0_out {
+	tcon_lcd0_out_panel: endpoint@0 {
+		reg = <0>;
+		remote-endpoint = <&panel_input>;
+	};
+};
+
+// SPEAKER
+&codec {
+	routing = "Main Speaker", "HPOUTL",
+		  "Main Speaker", "HPOUTR";
+	allwinner,audio-routing = "Main Speaker", "HPOUTL",
+				  "Main Speaker", "HPOUTR";
+	widgets = "Speaker", "Main Speaker";
+	status = "okay";
+};
+
+&codec_analog {
+	status = "okay";
+};
+
+// USB
+&ohci1 {
+	status = "okay";
+};
+
+&ehci1 {
+	status = "okay";
+};
+
+&ohci0 {
+	status = "okay";
+};
+
+&ehci0 {
+	status = "okay";
+};
+
+&usbphy {
+	usb0_vbus-supply = <&reg_usbvbus>;
+	usb1_vbus-supply = <&reg_usbvbus>;
+	status = "okay";
+};

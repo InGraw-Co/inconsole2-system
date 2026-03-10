@@ -1,0 +1,117 @@
+#!/bin/sh
+
+LOG_DIR="/userdata/system/logs"
+LOG_FILE="${LOG_DIR}/inconsole-runtime.log"
+CORE_LOG="${LOG_DIR}/runtime-core.log"
+RUNTIME_BIN="/usr/bin/inconsole-runtime"
+TTY_DEV="/dev/tty0"
+RETRY_DELAY=3
+TAIL_LINES=24
+DEFAULT_APPS_DIR="/usr/share/inconsole/default-apps"
+
+ts() {
+    date '+%Y-%m-%d %H:%M:%S'
+}
+
+log() {
+    printf '%s launcher: %s\n' "$(ts)" "$*" >>"$LOG_FILE"
+}
+
+show_failure_screen() {
+    rc="$1"
+    sig=""
+    if [ "$rc" -ge 128 ]; then
+        sig=$((rc - 128))
+    fi
+
+    {
+        printf '\033[2J\033[H'
+        printf 'InConsole Recovery Screen\n'
+        printf '=========================\n'
+        printf 'Runtime exited unexpectedly.\n'
+        printf 'Exit code: %s\n' "$rc"
+        if [ -n "$sig" ]; then
+            printf 'Signal   : %s\n' "$sig"
+        fi
+        printf 'Time     : %s\n' "$(ts)"
+        printf '\nLast %d lines of runtime-core.log:\n' "$TAIL_LINES"
+        tail -n "$TAIL_LINES" "$CORE_LOG" 2>/dev/null || printf '(runtime-core.log not found)\n'
+        printf '\nLast %d lines of inconsole-runtime.log:\n' "$TAIL_LINES"
+        tail -n "$TAIL_LINES" "$LOG_FILE" 2>/dev/null || printf '(inconsole-runtime.log not found)\n'
+        printf '\nAuto-retry in %ss...\n' "$RETRY_DELAY"
+    } >"$TTY_DEV" 2>/dev/null
+}
+
+append_kernel_tail() {
+    if command -v dmesg >/dev/null 2>&1; then
+        log "kernel tail after runtime crash:"
+        dmesg | tail -n 20 >>"$LOG_FILE" 2>&1
+    fi
+}
+
+sync_default_apps() {
+    if [ ! -d "$DEFAULT_APPS_DIR" ]; then
+        log "default apps dir missing: ${DEFAULT_APPS_DIR}"
+        return
+    fi
+
+    mkdir -p /userdata/apps
+    cp -a "$DEFAULT_APPS_DIR"/. /userdata/apps/ >>"$LOG_FILE" 2>&1
+    if [ -f /userdata/apps/doom/launch.sh ]; then
+        chmod +x /userdata/apps/doom/launch.sh >>"$LOG_FILE" 2>&1 || true
+    fi
+    log "default apps synced from ${DEFAULT_APPS_DIR}"
+}
+
+mkdir -p "$LOG_DIR"
+touch "$LOG_FILE" "$CORE_LOG"
+
+# Runtime data roots (persistent userdata + system icons).
+export INCONSOLE_DATA_ROOT="${INCONSOLE_DATA_ROOT:-/userdata}"
+export INCONSOLE_SYSTEM_ICONS="${INCONSOLE_SYSTEM_ICONS:-/usr/share/inconsole/system-icons}"
+
+# SDL (fbcon) hints; video driver can still be overridden externally.
+export SDL_VIDEODRIVER="${SDL_VIDEODRIVER:-fbcon}"
+export SDL_FBDEV="${SDL_FBDEV:-/dev/fb0}"
+export SDL_NOMOUSE="${SDL_NOMOUSE:-1}"
+export INCONSOLE_CACHE_TEXT_MB="${INCONSOLE_CACHE_TEXT_MB:-1}"
+export INCONSOLE_CACHE_ICON_MB="${INCONSOLE_CACHE_ICON_MB:-1}"
+export INCONSOLE_CACHE_ICON_SCALED_MB="${INCONSOLE_CACHE_ICON_SCALED_MB:-1}"
+export INCONSOLE_CACHE_STYLE_MB="${INCONSOLE_CACHE_STYLE_MB:-3}"
+export INCONSOLE_CACHE_WIDTH_ITEMS="${INCONSOLE_CACHE_WIDTH_ITEMS:-768}"
+export INCONSOLE_TARGET_FPS="${INCONSOLE_TARGET_FPS:-120}"
+export INCONSOLE_SCENE_FADE_MS="${INCONSOLE_SCENE_FADE_MS:-120}"
+export INCONSOLE_SCENE_FADE_ALPHA="${INCONSOLE_SCENE_FADE_ALPHA:-120}"
+export INCONSOLE_FORCE_SOFTWARE_RENDERER="${INCONSOLE_FORCE_SOFTWARE_RENDERER:-1}"
+
+log "start (runtime=${RUNTIME_BIN})"
+log "env INCONSOLE_DATA_ROOT=${INCONSOLE_DATA_ROOT} INCONSOLE_SYSTEM_ICONS=${INCONSOLE_SYSTEM_ICONS}"
+log "env SDL_VIDEODRIVER=${SDL_VIDEODRIVER} SDL_FBDEV=${SDL_FBDEV} SDL_NOMOUSE=${SDL_NOMOUSE}"
+log "env INCONSOLE_FORCE_SOFTWARE_RENDERER=${INCONSOLE_FORCE_SOFTWARE_RENDERER} INCONSOLE_CACHE_TEXT_MB=${INCONSOLE_CACHE_TEXT_MB} INCONSOLE_CACHE_ICON_MB=${INCONSOLE_CACHE_ICON_MB} INCONSOLE_CACHE_ICON_SCALED_MB=${INCONSOLE_CACHE_ICON_SCALED_MB} INCONSOLE_CACHE_STYLE_MB=${INCONSOLE_CACHE_STYLE_MB} INCONSOLE_CACHE_WIDTH_ITEMS=${INCONSOLE_CACHE_WIDTH_ITEMS} INCONSOLE_TARGET_FPS=${INCONSOLE_TARGET_FPS} INCONSOLE_SCENE_FADE_MS=${INCONSOLE_SCENE_FADE_MS} INCONSOLE_SCENE_FADE_ALPHA=${INCONSOLE_SCENE_FADE_ALPHA}"
+sync_default_apps
+
+# Guard against stale images with old text-mode tester binary.
+if ! grep -q "Starting InConsole Runtime V2" "$RUNTIME_BIN" 2>/dev/null; then
+    log "runtime binary mismatch (missing V2 marker)"
+    show_failure_screen 200
+    while true; do
+        sleep 30
+    done
+fi
+
+while true; do
+    log "starting runtime"
+    "$RUNTIME_BIN" >>"$LOG_FILE" 2>&1
+    rc=$?
+    log "runtime exited rc=${rc}"
+
+    if [ "$rc" -eq 0 ]; then
+        log "runtime exited cleanly, restarting in 1s"
+        sleep 1
+        continue
+    fi
+
+    append_kernel_tail
+    show_failure_screen "$rc"
+    sleep "$RETRY_DELAY"
+done

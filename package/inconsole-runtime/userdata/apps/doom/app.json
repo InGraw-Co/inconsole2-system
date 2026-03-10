@@ -1,0 +1,11 @@
+{
+  "id": "doom.classic",
+  "type": "game|gra",
+  "name": "DOOM Classic|DOOM Klasyczny",
+  "description": "Classic shareware DOOM on PrBoom SDL1; exclusive mode frees launcher RAM while playing; controls D-Pad move A fire B use L run R strafe START menu.|Klasyczny shareware DOOM na PrBoom SDL1; tryb exclusive zwalnia RAM launchera podczas gry; sterowanie D-Pad ruch A strzal B uzyj L bieg R strafe START menu.",
+  "icon": "icon.png",
+  "exec": "launch.sh",
+  "category": "Games|Gry",
+  "order": 10,
+  "exclusive_runtime": true
+}

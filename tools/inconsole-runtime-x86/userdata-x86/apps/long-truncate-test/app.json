@@ -1,0 +1,10 @@
+{
+  "id": "long.truncate.test.application.with.very.long.identifier.for.details.panel",
+  "name": "Super Ekstremalnie Długa Nazwa Aplikacji Testowej Do Sprawdzania Ucinania Tekstu w Launcherze",
+  "type": "narzedzie-systemowe-z-bardzo-dluga-klasa-funkcjonalna-do-testow-ui",
+  "description": "To jest bardzo długi opis aplikacji testowej, który celowo ma dużo słów, polskie znaki ąćęłńóśźż i powinien zostać poprawnie zawinięty oraz ucięty wielokropkiem w panelu szczegółów po kliknięciu SELECT, bez nachodzenia na inne elementy interfejsu.",
+  "category": "Kategoria-Bardzo-Dluga-Testowa-Do-Sprawdzenia-Ellipsize",
+  "order": 999,
+  "exec": "launch.sh",
+  "icon": "icon.png"
+}

@@ -1,0 +1,17 @@
+#!/bin/sh
+
+set -eu
+
+mkdir -p /userdata/system
+: > /userdata/system/force-first-login
+rm -f /userdata/system/profile.json /userdata/system/settings.json
+sync
+
+echo "InConsole: first login reset requested."
+echo "Runtime will restart now."
+
+if command -v killall >/dev/null 2>&1; then
+    killall inconsole-runtime 2>/dev/null || true
+fi
+
+exit 0

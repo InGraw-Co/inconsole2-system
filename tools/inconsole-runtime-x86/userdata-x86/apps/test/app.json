@@ -1,0 +1,10 @@
+{
+  "id": "afla.app",
+  "name": "Demo App",
+  "type": "tool",
+  "description": "Desktop test app for launcher visuals",
+  "category": "Demo",
+  "order": 10,
+  "exec": "launch.sh",
+  "icon": "icon.png"
+}

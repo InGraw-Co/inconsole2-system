@@ -1,0 +1,17 @@
+config BR2_PACKAGE_INCONSOLE_RUNTIME
+	bool "inconsole-runtime"
+	depends on BR2_INSTALL_LIBSTDCPP
+	depends on BR2_PACKAGE_SDL
+	depends on BR2_PACKAGE_SDL_FBCON
+	select BR2_PACKAGE_FREETYPE
+	select BR2_PACKAGE_LIBPNG
+	select BR2_PACKAGE_DEJAVU
+	help
+	  GUI launcher and runtime shell for InConsole devices.
+	  Runs as a kiosk interface on tty0 with scenes:
+	  launcher, first-run wizard, settings and diagnostics.
+
+comment "inconsole-runtime needs a toolchain w/ C++"
+	depends on !BR2_INSTALL_LIBSTDCPP || \
+		!BR2_PACKAGE_SDL || \
+		!BR2_PACKAGE_SDL_FBCON

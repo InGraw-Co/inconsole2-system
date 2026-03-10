@@ -1,0 +1,50 @@
+From 8f73f1d9a6b2a2c7df4ff2d4a7f1fcb1a0c54e2d Mon Sep 17 00:00:00 2001
+From: InGraw <ingraw | mateusz lademann>
+Date: Mon, 23 Feb 2026 20:05:00 +0000
+Subject: [PATCH] drm/panel: panel-simple: add ingraw inconsole2 lcd profile
+
+The board uses a 480x272 RGB565 DPI panel. Add a dedicated
+panel-simple entry and DT compatible so the kernel no longer selects
+the 800x480 profile from bananapi,s070wv20-ct16.
+
+---
+--- a/drivers/gpu/drm/panel/panel-simple.c
++++ b/drivers/gpu/drm/panel/panel-simple.c
+@@ -1375,6 +1375,27 @@ static const struct panel_desc bananapi_s070wv20_ct16 = {
+ 	},
+ };
+ 
++static const struct drm_display_mode ingraw_inconsole2_lcd_mode = {
++	.clock = 9000,
++	.hdisplay = 480,
++	.hsync_start = 480 + 2,
++	.hsync_end = 480 + 2 + 41,
++	.htotal = 480 + 2 + 41 + 2,
++	.vdisplay = 272,
++	.vsync_start = 272 + 2,
++	.vsync_end = 272 + 2 + 10,
++	.vtotal = 272 + 2 + 10 + 2,
++	.flags = DRM_MODE_FLAG_PHSYNC | DRM_MODE_FLAG_PVSYNC,
++};
++
++static const struct panel_desc ingraw_inconsole2_lcd = {
++	.modes = &ingraw_inconsole2_lcd_mode,
++	.num_modes = 1,
++	.bpc = 6,
++	.bus_format = MEDIA_BUS_FMT_RGB565_1X16,
++	.connector_type = DRM_MODE_CONNECTOR_DPI,
++};
++
+ static const struct drm_display_mode boe_bp101wx1_100_mode = {
+ 	.clock = 78945,
+ 	.hdisplay = 1280,
+@@ -4093,6 +4114,9 @@
+ 		.compatible = "hit,tx23d38vm0caa",
+ 		.data = &hitachi_tx23d38vm0caa
+ 	}, {
++		.compatible = "ingraw,inconsole2-lcd",
++		.data = &ingraw_inconsole2_lcd,
++	}, {
+ 		.compatible = "innolux,at043tn24",
+ 		.data = &innolux_at043tn24,
+ 	}, {

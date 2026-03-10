@@ -1,0 +1,12 @@
+#!/bin/sh
+
+OUT="/userdata/system/logs/boot-dmesg.log"
+TMP="${OUT}.tmp"
+
+mkdir -p "$(dirname "$OUT")"
+
+if dmesg > "$TMP" 2>&1; then
+	mv "$TMP" "$OUT"
+else
+	rm -f "$TMP"
+fi

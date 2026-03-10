@@ -1,0 +1,36 @@
+InConsole 2.0 Checklist
+
+Legend:
+✅ - Working
+⏳ - In progress
+❌ - Not working
+
+Hardware:
+1. LED: ✅ (Easy)
+2. SD Card: ✅ (Easy)
+3. LCD: ✅ (Easy)
+4. USB Port: ✅ (Easy)
+5. Buttons: ✅ (Medium)
+6. Speaker: ⏳ (Medium)
+7. Joystick: ✅ (Hard)
+8. Battery: ⏳ (Hard)
+9. WiFi: ⏳ (Very hard)
+
+Software:
+1. Boot Logo: ✅ (Easy)
+2. Autologin: ✅ (Easy)
+3. Optimal resolution: ✅ (Easy)
+4. Launcher autostart: ✅ (Easy)
+5. Launcher ✅ (Hard)
+6. First boot setup wizard: ✅ (Medium)
+7. Settings menu: ✅ (Medium)
+8. Online updates: ⏳ (Hard)
+9. Recovery mode: ✅ (Medium)
+10. Game cloud integration: ⏳ (Very hard)
+11. Keyboard ✅ (Hard)
+12. Installer for settings on kernel: ✅ (Easy)
+13. Volume control: ✅ (Easy)
+14. Add USB Mass Storage: ✅  (Medium)
+15. Add physical keyboard support: ✅ (Medium)
+16. Add WiFi support: ⏳ (Medium)
+17. File manager: ✅  (Hard)
