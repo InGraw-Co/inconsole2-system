@@ -34,7 +34,7 @@
 
 | Vendor  | Device        | Chip    | U-Boot       | Defconfig                 |
 |---------|---------------|---------|--------------|---------------------------|
-| InGraw  | InConsole 2.0 | T113-S3 | [tina,uboot 2018](https://github.com/jcyfkimi/tina-u-boot-2018) | inconsole2_defconfig|
+| InGraw  | InConsole 2.0 | T113-S3 | [tina,uboot 2018](https://github.com/apritzel/u-boot) | inconsole2_defconfig|
 
 
 ## Quick Start-up
