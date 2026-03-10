@@ -73,7 +73,7 @@ Now wait until Buildroot finishes compiling everything.
 After a successful build, the SD card image will be available at:
 
 ```
-buildroot/output/images/sdcard.img
+output/images/sdcard.img
 ```
 If you are using **WSL**, simply copy this file to Windows.
 
@@ -92,10 +92,6 @@ If you are using **WSL**, simply copy this file to Windows.
 Insert the SD card into **InConsole 2.0**, power it on and wait for boot.
 
 Please report bugs and issues using the **Issues** tab of this repository.
-
-## Development
-Advanced build, configuration and package commands are documented here:
-➡️ [Buildroot Development Commands](buildroot-scripts.md)
 
 ## About Buildroot
 ```
@@ -126,8 +122,3 @@ You can also find us on #buildroot on Freenode IRC.
 If you would like to contribute patches, please read
 https://buildroot.org/manual.html#submitting-patches
 ```
-## Licence
-[License]
-
-<!----------------------------------------------------------------------------->
-[License]: LICENSE
