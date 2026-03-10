@@ -34,7 +34,7 @@
 
 | Vendor  | Device        | Chip    | U-Boot       | Defconfig                 |
 |---------|---------------|---------|--------------|---------------------------|
-| InGraw  | InConsole 2.0 | T113-S3 | [t113s-mq-r-WIP](https://github.com/apritzel/u-boot) | inconsole2_defconfig|
+| InGraw  | InConsole 2.0 | T113-S3 | [t113s-mq-r-WIP](https://github.com/apritzel/u-boot) | ingraw_inconsole2_defconfig|
 
 
 ## Quick Start-up
@@ -54,15 +54,15 @@ sudo apt install rsync wget unzip build-essential git bc swig libncurses-dev lib
 
 ### 2. Clone the repository
 ```bash
-git clone https://github.com/InGraw-Co/inconsole2-runtime
-cd inconsole2-runtime
+git clone https://github.com/InGraw-Co/inconsole2-system
+cd inconsole2-system
 ```
 
 ---
 
 ### 3. Build the system
 ```bash
-make
+make ingraw_inconsole2_defconfig
 ```
 Now wait until Buildroot finishes compiling everything.
 
