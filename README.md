@@ -54,7 +54,7 @@ sudo apt install rsync wget unzip build-essential git bc swig libncurses-dev lib
 
 ### 2. Clone the repository
 ```bash
-git clone https://github.com/InGraw-Co/inconsole2-system
+git clone --recurse-submodules https://github.com/InGraw-Co/inconsole2-system
 cd inconsole2-system
 ```
 
