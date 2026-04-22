@@ -394,16 +394,14 @@
 			#iommu-cells = <1>;
 		};
 
-		codec: audio-codec@2030000 {
-			compatible = "allwinner,sun20i-d1-codec", "simple-mfd", "syscon";
-			reg = <0x2030000 0x1000>;
+		codec: codec@2030000 {
+			compatible = "allwinner,sun20i-d1-codec";
+			reg = <0x02030000 0x300>;
 			interrupts = <GIC_SPI 25 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&ccu CLK_BUS_AUDIO>,
 				 <&ccu CLK_AUDIO_ADC>,
-				 <&ccu CLK_AUDIO_DAC>,
-				 <&osc24M>,
-				 <&rtc CLK_OSC32K>;
-			clock-names = "apb", "adc", "dac", "hosc", "losc";
+				 <&ccu CLK_AUDIO_DAC>;
+			clock-names = "apb", "adc", "dac";
 			resets = <&ccu RST_BUS_AUDIO>;
 			dmas = <&dma 7>, <&dma 7>;
 			dma-names = "rx", "tx";
@@ -430,7 +428,7 @@
 
 		codec_analog: codec-analog@2030300 {
 			compatible = "allwinner,sun20i-d1-codec-analog";
-			reg = <0x2030300 0xd00>;
+			reg = <0x02030300 0xd00>;
 			status = "disabled";
 		};
 
@@ -450,7 +448,8 @@
 		};
 
 		i2s0: i2s@2032000 {
-			compatible = "allwinner,sun20i-d1-i2s",
+			compatible = "allwinner,sun4i-a10-i2s",
+				     "allwinner,sun20i-d1-i2s",
 				     "allwinner,sun50i-r329-i2s";
 			reg = <0x2032000 0x1000>;
 			interrupts = <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>;
