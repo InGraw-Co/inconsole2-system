@@ -17,7 +17,7 @@
 | **LCD** | ✅ |
 | **USB Port** | ✅ | 
 | **Buttons** | ✅ |
-| **Speaker** | ⚠️ |
+| **Speaker** | ✅ |
 | **Joystick** | ✅ |
 | **Battery** | ✅ |
 | **WiFi** | ⚠️ |
