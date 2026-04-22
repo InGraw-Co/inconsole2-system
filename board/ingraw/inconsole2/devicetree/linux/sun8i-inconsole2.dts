@@ -324,10 +324,8 @@
 
 // SPEAKER
 &codec {
-	routing = "Main Speaker", "HPOUTL",
-		  "Main Speaker", "HPOUTR";
-	allwinner,audio-routing = "Main Speaker", "HPOUTL",
-				  "Main Speaker", "HPOUTR";
+	routing = "Speaker", "HP";
+	allwinner,audio-routing = "Speaker", "HP";
 	widgets = "Speaker", "Main Speaker";
 	status = "okay";
 };
