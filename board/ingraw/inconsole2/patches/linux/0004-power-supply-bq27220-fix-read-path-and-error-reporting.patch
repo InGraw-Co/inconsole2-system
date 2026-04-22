@@ -1,0 +1,273 @@
+From 6f3a7e21aef58ad27595f9f7a2a5c06af7000002 Mon Sep 17 00:00:00 2001
+From: InGraw <ingraw | mateusz lademann>
+Date: Mon, 9 Mar 2026 20:20:00 +0000
+Subject: [PATCH] power: supply: bq27220: harden read path and avoid fake zero
+ values
+
+Improve BQ27220 reliability on targets where SMBus transfers are flaky:
+- add fallback read/write path through i2c block transfers,
+- retry writes and optionally send BAT_INSERT when
+  'ti,assume-battery-present' is set,
+- treat BAT_STAT/VOLT/SOC as mandatory and avoid publishing stale zeros,
+- return read errors from get_property instead of silently exposing 0%, 0mV,
+- emit rate-limited refresh errors for diagnostics.
+
+---
+--- a/drivers/power/supply/bq27220_battery.c
++++ b/drivers/power/supply/bq27220_battery.c
+@@ -26,6 +26,9 @@
+ #define BQ27220_REG_TTF			0x18
+ #define BQ27220_REG_CYCLE		0x2a
+ #define BQ27220_REG_SOC			0x2c
++#define BQ27220_REG_CONTROL		0x00
++
++#define BQ27220_CTRL_BAT_INSERT		0x000d
+ 
+ #define BQ27220_BAT_STAT_DSG		BIT(0)
+ #define BQ27220_BAT_STAT_BATTPRES	BIT(3)
+@@ -54,67 +57,147 @@
+ 	int time_to_full_min;
+ };
+ 
++static int bq27220_read_word_raw(struct bq27220_device *bq, u8 reg, u16 *val)
++{
++	u8 buf[2];
++	int ret = i2c_smbus_read_word_data(bq->client, reg);
++
++	if (ret >= 0) {
++		*val = (u16)ret;
++		return 0;
++	}
++
++	ret = i2c_smbus_read_i2c_block_data(bq->client, reg, sizeof(buf), buf);
++	if (ret == sizeof(buf)) {
++		*val = ((u16)buf[1] << 8) | buf[0];
++		return 0;
++	}
++	if (ret >= 0)
++		return -EIO;
++	return ret;
++}
++
+ static int bq27220_read_word(struct bq27220_device *bq, u8 reg, int *val)
+ {
+ 	int retry;
+-	s32 ret = -EIO;
++	int ret = -EIO;
++	u16 raw = 0;
+ 
+ 	for (retry = 0; retry < 3; ++retry) {
+-		ret = i2c_smbus_read_word_data(bq->client, reg);
+-		if (ret >= 0)
++		ret = bq27220_read_word_raw(bq, reg, &raw);
++		if (!ret)
+ 			break;
+ 		if (ret != -EBUSY && ret != -EIO && ret != -EREMOTEIO)
+ 			break;
+ 		usleep_range(2000, 3000);
+ 	}
+-	if (ret < 0)
++	if (ret)
+ 		return ret;
+ 
+-	*val = (u16)ret;
++	*val = raw;
+ 	return 0;
+ }
+ 
+-static int bq27220_refresh_locked(struct bq27220_device *bq)
++static int bq27220_write_word(struct bq27220_device *bq, u8 reg, u16 value)
++{
++	int retry;
++	int ret = -EIO;
++	u8 buf[2];
++
++	buf[0] = value & 0xff;
++	buf[1] = (value >> 8) & 0xff;
++
++	for (retry = 0; retry < 3; ++retry) {
++		ret = i2c_smbus_write_word_data(bq->client, reg, value);
++		if (!ret)
++			return 0;
++
++		ret = i2c_smbus_write_i2c_block_data(bq->client, reg, sizeof(buf), buf);
++		if (!ret)
++			return 0;
++
++		if (ret != -EBUSY && ret != -EIO && ret != -EREMOTEIO)
++			break;
++		usleep_range(2000, 3000);
++	}
++
++	return ret;
++}
++
++static void bq27220_maybe_force_present(struct bq27220_device *bq)
+ {
+-	int batt_stat, volt, curr, soc, rm, fcc, temp, cyc, tte, ttf;
+ 	int ret;
+ 
+-	ret = bq27220_read_word(bq, BQ27220_REG_BAT_STAT, &batt_stat);
+-	if (ret)
+-		return ret;
+-	ret = bq27220_read_word(bq, BQ27220_REG_VOLT, &volt);
+-	if (ret)
+-		return ret;
+-	ret = bq27220_read_word(bq, BQ27220_REG_CURR, &curr);
+-	if (ret)
+-		return ret;
+-	ret = bq27220_read_word(bq, BQ27220_REG_SOC, &soc);
++	if (!bq->assume_present)
++		return;
++
++	ret = bq27220_write_word(bq, BQ27220_REG_CONTROL, BQ27220_CTRL_BAT_INSERT);
+ 	if (ret)
+-		return ret;
+-	ret = bq27220_read_word(bq, BQ27220_REG_RM, &rm);
++		dev_warn(&bq->client->dev, "BAT_INSERT command failed: %d\n", ret);
++	else
++		dev_info(&bq->client->dev, "BAT_INSERT command sent (assume-battery-present)\n");
++}
++
++static int bq27220_read_optional(struct bq27220_device *bq, u8 reg, int fallback)
++{
++	int val;
++
++	if (bq27220_read_word(bq, reg, &val))
++		return fallback;
++	return val;
++}
++
++static int bq27220_read_time_optional(struct bq27220_device *bq, u8 reg)
++{
++	int val;
++
++	if (bq27220_read_word(bq, reg, &val))
++		return -1;
++	if (val == 0xffff)
++		return -1;
++	return val;
++}
++
++static int bq27220_read_mandatory(struct bq27220_device *bq, u8 reg, int *val)
++{
++	int ret = bq27220_read_word(bq, reg, val);
++
+ 	if (ret)
+-		return ret;
+-	ret = bq27220_read_word(bq, BQ27220_REG_FCC, &fcc);
++		bq->valid = false;
++	return ret;
++}
++
++static int bq27220_refresh_impl(struct bq27220_device *bq)
++{
++	int batt_stat, volt, soc;
++	int curr, rm, fcc, temp, cyc, tte, ttf;
++	int ret;
++
++	ret = bq27220_read_mandatory(bq, BQ27220_REG_BAT_STAT, &batt_stat);
+ 	if (ret)
+ 		return ret;
+-	ret = bq27220_read_word(bq, BQ27220_REG_TEMP, &temp);
++	ret = bq27220_read_mandatory(bq, BQ27220_REG_VOLT, &volt);
+ 	if (ret)
+ 		return ret;
+-	ret = bq27220_read_word(bq, BQ27220_REG_CYCLE, &cyc);
++	ret = bq27220_read_mandatory(bq, BQ27220_REG_SOC, &soc);
+ 	if (ret)
+ 		return ret;
+ 
+-	if (bq27220_read_word(bq, BQ27220_REG_TTE, &tte))
+-		tte = -1;
+-	if (bq27220_read_word(bq, BQ27220_REG_TTF, &ttf))
+-		ttf = -1;
+-	if (tte == 0xffff)
+-		tte = -1;
+-	if (ttf == 0xffff)
+-		ttf = -1;
++	if (volt <= 0 || soc < 0 || soc > 100) {
++		bq->valid = false;
++		return -ENODATA;
++	}
++
++	curr = bq27220_read_optional(bq, BQ27220_REG_CURR, 0);
++	rm = bq27220_read_optional(bq, BQ27220_REG_RM, 0);
++	fcc = bq27220_read_optional(bq, BQ27220_REG_FCC, 0);
++	temp = bq27220_read_optional(bq, BQ27220_REG_TEMP, 2731);
++	cyc = bq27220_read_optional(bq, BQ27220_REG_CYCLE, -1);
++	tte = bq27220_read_time_optional(bq, BQ27220_REG_TTE);
++	ttf = bq27220_read_time_optional(bq, BQ27220_REG_TTF);
+ 
+ 	bq->present = bq->assume_present ? 1 : !!(batt_stat & BQ27220_BAT_STAT_BATTPRES);
+-	bq->soc = clamp_val(soc, 0, 100);
++	bq->soc = soc;
+ 	bq->voltage_uv = volt * 1000;
+ 	bq->current_ua = (s16)curr * 1000;
+ 	bq->charge_now_uah = rm * 1000;
+@@ -140,13 +223,26 @@
+ 	return 0;
+ }
+ 
++static int bq27220_refresh_locked(struct bq27220_device *bq)
++{
++	int ret = bq27220_refresh_impl(bq);
++
++	if (!ret)
++		return 0;
++
++	dev_warn_ratelimited(&bq->client->dev, "refresh failed: %d\n", ret);
++	return ret;
++}
++
+ static void bq27220_poll_workfn(struct work_struct *work)
+ {
+ 	struct bq27220_device *bq =
+ 		container_of(to_delayed_work(work), struct bq27220_device, poll_work);
++	int ret;
+ 
+ 	mutex_lock(&bq->lock);
+-	if (!bq27220_refresh_locked(bq))
++	ret = bq27220_refresh_locked(bq);
++	if (!ret)
+ 		power_supply_changed(bq->psy);
+ 	mutex_unlock(&bq->lock);
+ 
+@@ -183,10 +279,16 @@
+ 				     union power_supply_propval *val)
+ {
+ 	struct bq27220_device *bq = power_supply_get_drvdata(psy);
++	int ret;
+ 
+ 	mutex_lock(&bq->lock);
+-	if (!bq->valid)
+-		(void)bq27220_refresh_locked(bq);
++	if (!bq->valid) {
++		ret = bq27220_refresh_locked(bq);
++		if (ret) {
++			mutex_unlock(&bq->lock);
++			return ret;
++		}
++	}
+ 
+ 	switch (psp) {
+ 	case POWER_SUPPLY_PROP_STATUS:
+@@ -252,6 +354,7 @@
+ 	bq->assume_present = device_property_read_bool(&client->dev, "ti,assume-battery-present");
+ 	bq->status = POWER_SUPPLY_STATUS_UNKNOWN;
+ 	bq->present = bq->assume_present ? 1 : 0;
++	bq27220_maybe_force_present(bq);
+ 
+ 	desc = devm_kzalloc(&client->dev, sizeof(*desc), GFP_KERNEL);
+ 	if (!desc)
+@@ -275,6 +378,10 @@
+ 		return dev_err_probe(&client->dev, PTR_ERR(bq->psy),
+ 				     "failed to register power supply\n");
+ 
++	mutex_lock(&bq->lock);
++	(void)bq27220_refresh_locked(bq);
++	mutex_unlock(&bq->lock);
++
+ 	INIT_DELAYED_WORK(&bq->poll_work, bq27220_poll_workfn);
+ 	schedule_delayed_work(&bq->poll_work, 0);
+ 

@@ -1,0 +1,380 @@
+From 6f3a7e21aef58ad27595f9f7a2a5c06af7000001 Mon Sep 17 00:00:00 2001
+From: InGraw <ingraw | mateusz lademann>
+Date: Fri, 6 Mar 2026 17:55:00 +0000
+Subject: [PATCH] power: supply: add dedicated TI BQ27220 I2C battery driver
+
+Add a standalone power-supply driver for the TI BQ27220 fuel gauge
+instead of aliasing it through bq27xxx profiles.
+
+The driver reads standard commands defined by BQ27220 TRM (SLUUBD4A),
+including:
+- BatteryStatus() 0x0A
+- Voltage() 0x08
+- Current() 0x0C
+- RemainingCapacity() 0x10
+- FullChargeCapacity() 0x12
+- TimeToEmpty() 0x16
+- TimeToFull() 0x18
+- Temperature() 0x06
+- CycleCount() 0x2A
+- StateOfCharge() 0x2C
+
+Exposes values through power_supply class and supports optional IRQ
+notifications via GPOUT.
+
+---
+--- a/drivers/power/supply/Kconfig
++++ b/drivers/power/supply/Kconfig
+@@ -286,6 +286,13 @@ config BATTERY_BQ27XXX_HDQ
+ 	  Say Y here to enable support for batteries with BQ27xxx chips
+ 	  connected over an HDQ bus.
+ 
++config BATTERY_BQ27220_I2C
++	tristate "TI BQ27220 battery driver"
++	depends on I2C
++	help
++	  Say Y here to enable support for TI BQ27220 system-side fuel gauge
++	  over I2C.
++
+ config BATTERY_BQ27XXX_DT_UPDATES_NVM
+ 	bool "BQ27xxx support for update of NVM/flash data memory"
+ 	depends on BATTERY_BQ27XXX_I2C
+--- a/drivers/power/supply/Makefile
++++ b/drivers/power/supply/Makefile
+@@ -46,6 +46,7 @@ obj-$(CONFIG_MANAGER_SBS)	+= sbs-manager.o
+ obj-$(CONFIG_BATTERY_BQ27XXX)	+= bq27xxx_battery.o
+ obj-$(CONFIG_BATTERY_BQ27XXX_I2C) += bq27xxx_battery_i2c.o
+ obj-$(CONFIG_BATTERY_BQ27XXX_HDQ) += bq27xxx_battery_hdq.o
++obj-$(CONFIG_BATTERY_BQ27220_I2C) += bq27220_battery.o
+ obj-$(CONFIG_BATTERY_DA9030)	+= da9030_battery.o
+ obj-$(CONFIG_BATTERY_DA9052)	+= da9052-battery.o
+ obj-$(CONFIG_CHARGER_DA9150)	+= da9150-charger.o
+--- /dev/null
++++ b/drivers/power/supply/bq27220_battery.c
+@@ -0,0 +1,326 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * TI BQ27220 fuel gauge driver
++ *
++ * Minimal standalone power-supply driver based on BQ27220 TRM (SLUUBD4A).
++ */
++
++#include <linux/bitops.h>
++#include <linux/i2c.h>
++#include <linux/interrupt.h>
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/mutex.h>
++#include <linux/of_device.h>
++#include <linux/power_supply.h>
++#include <linux/delay.h>
++#include <linux/workqueue.h>
++
++#define BQ27220_REG_TEMP		0x06
++#define BQ27220_REG_VOLT		0x08
++#define BQ27220_REG_BAT_STAT		0x0a
++#define BQ27220_REG_CURR		0x0c
++#define BQ27220_REG_RM			0x10
++#define BQ27220_REG_FCC			0x12
++#define BQ27220_REG_TTE			0x16
++#define BQ27220_REG_TTF			0x18
++#define BQ27220_REG_CYCLE		0x2a
++#define BQ27220_REG_SOC			0x2c
++
++#define BQ27220_BAT_STAT_DSG		BIT(0)
++#define BQ27220_BAT_STAT_BATTPRES	BIT(3)
++#define BQ27220_BAT_STAT_FC		BIT(9)
++
++#define BQ27220_POLL_INTERVAL_MS	2000
++
++struct bq27220_device {
++	struct i2c_client *client;
++	struct power_supply *psy;
++	struct delayed_work poll_work;
++	struct mutex lock;
++	bool assume_present;
++
++	bool valid;
++	int status;
++	int present;
++	int soc;
++	int voltage_uv;
++	int current_ua;
++	int charge_now_uah;
++	int charge_full_uah;
++	int temp_deci_c;
++	int cycle_count;
++	int time_to_empty_min;
++	int time_to_full_min;
++};
++
++static int bq27220_read_word(struct bq27220_device *bq, u8 reg, int *val)
++{
++	int retry;
++	s32 ret = -EIO;
++
++	for (retry = 0; retry < 3; ++retry) {
++		ret = i2c_smbus_read_word_data(bq->client, reg);
++		if (ret >= 0)
++			break;
++		if (ret != -EBUSY && ret != -EIO && ret != -EREMOTEIO)
++			break;
++		usleep_range(2000, 3000);
++	}
++	if (ret < 0)
++		return ret;
++
++	*val = (u16)ret;
++	return 0;
++}
++
++static int bq27220_refresh_locked(struct bq27220_device *bq)
++{
++	int batt_stat, volt, curr, soc, rm, fcc, temp, cyc, tte, ttf;
++	int ret;
++
++	ret = bq27220_read_word(bq, BQ27220_REG_BAT_STAT, &batt_stat);
++	if (ret)
++		return ret;
++	ret = bq27220_read_word(bq, BQ27220_REG_VOLT, &volt);
++	if (ret)
++		return ret;
++	ret = bq27220_read_word(bq, BQ27220_REG_CURR, &curr);
++	if (ret)
++		return ret;
++	ret = bq27220_read_word(bq, BQ27220_REG_SOC, &soc);
++	if (ret)
++		return ret;
++	ret = bq27220_read_word(bq, BQ27220_REG_RM, &rm);
++	if (ret)
++		return ret;
++	ret = bq27220_read_word(bq, BQ27220_REG_FCC, &fcc);
++	if (ret)
++		return ret;
++	ret = bq27220_read_word(bq, BQ27220_REG_TEMP, &temp);
++	if (ret)
++		return ret;
++	ret = bq27220_read_word(bq, BQ27220_REG_CYCLE, &cyc);
++	if (ret)
++		return ret;
++
++	if (bq27220_read_word(bq, BQ27220_REG_TTE, &tte))
++		tte = -1;
++	if (bq27220_read_word(bq, BQ27220_REG_TTF, &ttf))
++		ttf = -1;
++	if (tte == 0xffff)
++		tte = -1;
++	if (ttf == 0xffff)
++		ttf = -1;
++
++	bq->present = bq->assume_present ? 1 : !!(batt_stat & BQ27220_BAT_STAT_BATTPRES);
++	bq->soc = clamp_val(soc, 0, 100);
++	bq->voltage_uv = volt * 1000;
++	bq->current_ua = (s16)curr * 1000;
++	bq->charge_now_uah = rm * 1000;
++	bq->charge_full_uah = fcc * 1000;
++	bq->temp_deci_c = temp - 2731; /* 0.1K -> 0.1C */
++	bq->cycle_count = cyc;
++	bq->time_to_empty_min = tte;
++	bq->time_to_full_min = ttf;
++
++	if (!bq->present) {
++		bq->status = POWER_SUPPLY_STATUS_UNKNOWN;
++	} else if (batt_stat & BQ27220_BAT_STAT_FC) {
++		bq->status = POWER_SUPPLY_STATUS_FULL;
++	} else if (batt_stat & BQ27220_BAT_STAT_DSG) {
++		bq->status = POWER_SUPPLY_STATUS_DISCHARGING;
++	} else if (bq->current_ua > 0) {
++		bq->status = POWER_SUPPLY_STATUS_CHARGING;
++	} else {
++		bq->status = POWER_SUPPLY_STATUS_NOT_CHARGING;
++	}
++
++	bq->valid = true;
++	return 0;
++}
++
++static void bq27220_poll_workfn(struct work_struct *work)
++{
++	struct bq27220_device *bq =
++		container_of(to_delayed_work(work), struct bq27220_device, poll_work);
++
++	mutex_lock(&bq->lock);
++	if (!bq27220_refresh_locked(bq))
++		power_supply_changed(bq->psy);
++	mutex_unlock(&bq->lock);
++
++	schedule_delayed_work(&bq->poll_work,
++				      msecs_to_jiffies(BQ27220_POLL_INTERVAL_MS));
++}
++
++static irqreturn_t bq27220_irq_thread(int irq, void *data)
++{
++	struct bq27220_device *bq = data;
++
++	schedule_delayed_work(&bq->poll_work, 0);
++	return IRQ_HANDLED;
++}
++
++static const enum power_supply_property bq27220_props[] = {
++	POWER_SUPPLY_PROP_STATUS,
++	POWER_SUPPLY_PROP_PRESENT,
++	POWER_SUPPLY_PROP_CAPACITY,
++	POWER_SUPPLY_PROP_VOLTAGE_NOW,
++	POWER_SUPPLY_PROP_CURRENT_NOW,
++	POWER_SUPPLY_PROP_CHARGE_NOW,
++	POWER_SUPPLY_PROP_CHARGE_FULL,
++	POWER_SUPPLY_PROP_TEMP,
++	POWER_SUPPLY_PROP_CYCLE_COUNT,
++	POWER_SUPPLY_PROP_TIME_TO_EMPTY_AVG,
++	POWER_SUPPLY_PROP_TIME_TO_FULL_AVG,
++	POWER_SUPPLY_PROP_MANUFACTURER,
++	POWER_SUPPLY_PROP_MODEL_NAME,
++};
++
++static int bq27220_get_property(struct power_supply *psy,
++				     enum power_supply_property psp,
++				     union power_supply_propval *val)
++{
++	struct bq27220_device *bq = power_supply_get_drvdata(psy);
++
++	mutex_lock(&bq->lock);
++	if (!bq->valid)
++		(void)bq27220_refresh_locked(bq);
++
++	switch (psp) {
++	case POWER_SUPPLY_PROP_STATUS:
++		val->intval = bq->status;
++		break;
++	case POWER_SUPPLY_PROP_PRESENT:
++		val->intval = bq->present;
++		break;
++	case POWER_SUPPLY_PROP_CAPACITY:
++		val->intval = bq->soc;
++		break;
++	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
++		val->intval = bq->voltage_uv;
++		break;
++	case POWER_SUPPLY_PROP_CURRENT_NOW:
++		val->intval = bq->current_ua;
++		break;
++	case POWER_SUPPLY_PROP_CHARGE_NOW:
++		val->intval = bq->charge_now_uah;
++		break;
++	case POWER_SUPPLY_PROP_CHARGE_FULL:
++		val->intval = bq->charge_full_uah;
++		break;
++	case POWER_SUPPLY_PROP_TEMP:
++		val->intval = bq->temp_deci_c;
++		break;
++	case POWER_SUPPLY_PROP_CYCLE_COUNT:
++		val->intval = bq->cycle_count;
++		break;
++	case POWER_SUPPLY_PROP_TIME_TO_EMPTY_AVG:
++		val->intval = bq->time_to_empty_min;
++		break;
++	case POWER_SUPPLY_PROP_TIME_TO_FULL_AVG:
++		val->intval = bq->time_to_full_min;
++		break;
++	case POWER_SUPPLY_PROP_MANUFACTURER:
++		val->strval = "Texas Instruments";
++		break;
++	case POWER_SUPPLY_PROP_MODEL_NAME:
++		val->strval = "BQ27220";
++		break;
++	default:
++		mutex_unlock(&bq->lock);
++		return -EINVAL;
++	}
++
++	mutex_unlock(&bq->lock);
++	return 0;
++}
++
++static int bq27220_probe(struct i2c_client *client)
++{
++	struct bq27220_device *bq;
++	struct power_supply_config psy_cfg = {};
++	struct power_supply_desc *desc;
++
++	bq = devm_kzalloc(&client->dev, sizeof(*bq), GFP_KERNEL);
++	if (!bq)
++		return -ENOMEM;
++
++	bq->client = client;
++	mutex_init(&bq->lock);
++	bq->assume_present = device_property_read_bool(&client->dev, "ti,assume-battery-present");
++	bq->status = POWER_SUPPLY_STATUS_UNKNOWN;
++	bq->present = bq->assume_present ? 1 : 0;
++
++	desc = devm_kzalloc(&client->dev, sizeof(*desc), GFP_KERNEL);
++	if (!desc)
++		return -ENOMEM;
++
++	desc->name = devm_kasprintf(&client->dev, GFP_KERNEL, "bq27220-%d-%04x",
++				    i2c_adapter_id(client->adapter), client->addr);
++	if (!desc->name)
++		return -ENOMEM;
++
++	desc->type = POWER_SUPPLY_TYPE_BATTERY;
++	desc->properties = bq27220_props;
++	desc->num_properties = ARRAY_SIZE(bq27220_props);
++	desc->get_property = bq27220_get_property;
++
++	psy_cfg.drv_data = bq;
++	psy_cfg.of_node = client->dev.of_node;
++
++	bq->psy = devm_power_supply_register(&client->dev, desc, &psy_cfg);
++	if (IS_ERR(bq->psy))
++		return dev_err_probe(&client->dev, PTR_ERR(bq->psy),
++				     "failed to register power supply\n");
++
++	INIT_DELAYED_WORK(&bq->poll_work, bq27220_poll_workfn);
++	schedule_delayed_work(&bq->poll_work, 0);
++
++	if (client->irq > 0) {
++		int ret = devm_request_threaded_irq(&client->dev, client->irq,
++						    NULL, bq27220_irq_thread,
++						    IRQF_ONESHOT,
++						    dev_name(&client->dev), bq);
++		if (ret)
++			dev_warn(&client->dev, "failed to request IRQ: %d\n", ret);
++	}
++
++	i2c_set_clientdata(client, bq);
++	return 0;
++}
++
++static void bq27220_remove(struct i2c_client *client)
++{
++	struct bq27220_device *bq = i2c_get_clientdata(client);
++
++	cancel_delayed_work_sync(&bq->poll_work);
++}
++
++static const struct of_device_id bq27220_of_match[] = {
++	{ .compatible = "ti,bq27220" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, bq27220_of_match);
++
++static const struct i2c_device_id bq27220_id[] = {
++	{ "bq27220", 0 },
++	{ }
++};
++MODULE_DEVICE_TABLE(i2c, bq27220_id);
++
++static struct i2c_driver bq27220_driver = {
++	.driver = {
++		.name = "bq27220-battery",
++		.of_match_table = bq27220_of_match,
++	},
++	.probe = bq27220_probe,
++	.remove = bq27220_remove,
++	.id_table = bq27220_id,
++};
++module_i2c_driver(bq27220_driver);
++
++MODULE_AUTHOR("InGraw");
++MODULE_DESCRIPTION("TI BQ27220 battery driver");
++MODULE_LICENSE("GPL");
