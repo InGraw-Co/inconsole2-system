@@ -6,7 +6,7 @@
 
 </div>
 
-# InConsole 2.0 Status:
+# InConsole 2.0 - Lasted version status:
 ✅: Supported — ❌: NOT support — ⚠️: Not Tested
 
 ## Hardware Checklist
@@ -20,17 +20,17 @@
 | **Speaker** | ✅ |
 | **Joystick** | ✅ |
 | **Battery** | ✅ |
-| **WiFi** | ⚠️ |
+| **WiFi** | ❌ |
 
 ## Software Checklist | InConsole-Runtime
 | Feature | Status | Feature | Status |
 | :--- | :---: | :--- | :---: |
 | **Boot Logo** | ✅ | **Recovery Mode** | ✅ |
-| **Autologin** | ✅ | **Game Cloud** | ⚠️ |
+| **Autologin** | ✅ | **Game Cloud** | ❌ |
 | **Launcher** | ✅ | **Virtual Keyboard** | ✅ |
 | **Setup Wizard** | ✅ | **Volume Control** | ✅ |
 | **Settings Menu** | ✅ | **USB Mass Storage** | ✅ |
-| **Online Updates** | ⚠️ | **File Manager** | ✅ |
+| **Online Updates** | ❌ | **File Manager** | ✅ |
 
 | Vendor  | Device        | Chip    | U-Boot       | Defconfig                 |
 |---------|---------------|---------|--------------|---------------------------|
