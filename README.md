@@ -2,7 +2,7 @@
 <div align = center>
 
 # InConsole 2.0 System
-*Buildroot Package for InConsole 2.0 with support t113-s3*
+*Buildroot package for InConsole 2.0 with T113-S3 and T113-M4020DC0 (T113-S4) support*
 
 </div>
 
@@ -32,9 +32,9 @@
 | **Settings Menu** | ✅ | **USB Mass Storage** | ✅ |
 | **Online Updates** | ❌ | **File Manager** | ✅ |
 
-| Vendor  | Device        | Chip    | U-Boot       | Defconfig                 |
-|---------|---------------|---------|--------------|---------------------------|
-| InGraw  | InConsole 2.0 | T113-S3 | [t113s-mq-r-WIP](https://github.com/apritzel/u-boot) | ingraw_inconsole2_defconfig|
+| Vendor  | Device        | Chip | Linux | U-Boot | Defconfig |
+|---------|---------------|------|-------|--------|-----------|
+| InGraw  | InConsole 2.0 | T113-S3 / T113-M4020DC0 (T113-S4) | 6.12.110 LTS | 2026.07 | ingraw_inconsole2_defconfig |
 
 
 ## Quick Start-up
@@ -66,6 +66,38 @@ make ingraw_inconsole2_defconfig
 make
 ```
 Now wait until Buildroot finishes compiling everything.
+
+For later updates, keep the existing `output/` directory. Buildroot will then
+reuse the toolchain and packages and rebuild only components affected by a
+configuration change:
+
+```bash
+git pull
+make ingraw_inconsole2_defconfig
+make
+```
+
+To rebuild only U-Boot after changing its source, version, configuration, or
+device tree, use:
+
+```bash
+make uboot-dirclean
+make uboot
+make
+```
+
+The final `make` regenerates `output/images/sdcard.img`; it does not rebuild
+unchanged packages. After a kernel version change, use the corresponding fast
+path:
+
+```bash
+make linux-dirclean
+make linux
+make
+```
+
+Do not run `make clean` unless a complete rebuild is required, because it
+removes the reusable build output and toolchain.
 
 ---
 
